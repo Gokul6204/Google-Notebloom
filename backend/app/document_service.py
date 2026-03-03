@@ -7,8 +7,8 @@ from typing import List
 class DocumentService:
     def __init__(self):
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=100,
+            chunk_size=1200,
+            chunk_overlap=250,
             add_start_index=True
         )
 
@@ -26,3 +26,4 @@ class DocumentService:
         loader = UnstructuredURLLoader(urls=[url])
         docs = loader.load()
         return self.text_splitter.split_documents(docs)
+ 

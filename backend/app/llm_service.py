@@ -1,33 +1,67 @@
-from langchain_ollama import OllamaLLM
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from typing import List, Dict
+import os
 
 class LLMService:
-    def __init__(self, model_name: str = "llama3"):
-        self.llm = OllamaLLM(
-            model=model_name,
-            num_predict=500,
-            temperature=0.1
+    def __init__(self, model_name: str = "llama-3.1-8b-instant"):
+        # User provided Groq API key
+        self.api_key = os.getenv("GROQ_API_KEY")
+        
+        self.llm = ChatGroq(
+            groq_api_key=self.api_key,
+            model_name=model_name,
+            temperature=0.1,
+            max_tokens=512,
+            timeout=30 # 30 seconds timeout
         )
         self.prompt_template = ChatPromptTemplate.from_template("""
-        You are an AI research assistant, inspired by NotebookLM.
-        Your goal is to provide accurate, comprehensive answers based ONLY on the provided context.
-        
-        Instructions:
-        1. Answer the question using only the Context below.
-        2. If the context doesn't contain the answer, say "I cannot find the answer in the provided documents."
-        3. Cite your sources inline where possible, e.g. [Source: file.pdf].
-        4. Be concise but detailed.
+            You are Antigravity, an advanced analytical AI research assistant inspired by NotebookLM.
 
-        Context:
-        {context}
+            Your goal is to provide precise, structured, and context-grounded answers.
 
-        Question:
-        {question}
+            CRITICAL RULES:
+            1. Use ONLY the provided Context.
+            2. Do NOT use external knowledge.
+            3. If the answer is not clearly present in the Context, say:
+            "Based on the documents provided, I couldn't find a direct mention of this topic."
+            4. Maintain a professional technical tone.
+            5. Keep answers under 500 words unless necessary.
 
-        Answer:""")
+            SPECIAL INSTRUCTION FOR COMPARISON QUESTIONS:
+            If the question includes words like:
+            - difference
+            - compare
+            - vs / versus
+            - advantages
+            - disadvantages
+            - similarities
+            - pros and cons
+
+            Then structure your answer as follows:
+
+            Step 1: Brief explanation of each concept individually (based strictly on Context).
+            Step 2: Clear comparison using bullet points.
+            Step 3: Short summary highlighting the key distinctions.
+
+            For non-comparison questions:
+            Provide a clear, well-structured explanation using bullet points if helpful.
+
+            If metadata like filenames or page numbers are available in the context, cite them clearly.
+
+            Context:
+            ---------------------
+            {context}
+            ---------------------
+
+            Question:
+            {question}
+
+            Structured Answer:
+            """)
 
     async def generate_response(self, question: str, context: str) -> str:
-        chain = self.prompt_template | self.llm
+        chain = self.prompt_template | self.llm | StrOutputParser()
         response = await chain.ainvoke({"question": question, "context": context})
         return response

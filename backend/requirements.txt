@@ -5,9 +5,15 @@ langchain-community
 langchain-huggingface
 langchain-chroma
 chromadb==0.5.5
-langchain-ollama
+# langchain-ollama
 pypdf
 pymupdf
 python-multipart
 python-dotenv
-faiss-cpu
+# langchain-chroma
+# chromadb
+groq
+langchain-groq
+langchain-postgres
+psycopg[binary]
+sentence-transformers

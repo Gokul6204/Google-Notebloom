@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './App.css'
 
 function App() {
@@ -19,6 +21,23 @@ function App() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Fetch sources on mount
+  useEffect(() => {
+    fetchSources()
+  }, [])
+
+  const fetchSources = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/documents')
+      if (response.ok) {
+        const data = await response.json()
+        setSources(data.documents)
+      }
+    } catch (error) {
+      console.error('Error fetching sources:', error)
+    }
+  }
 
   const handleSend = async () => {
     if (!input.trim()) return
@@ -81,10 +100,22 @@ function App() {
 
       // Short delay before showing as completed source
       setTimeout(() => {
-        setSources(prev => [...prev, { name: file.name, type: file.name.split('.').pop().toUpperCase() }])
+        if (data.status !== 'already_exists') {
+          setSources(prev => [...prev, { name: file.name, type: file.name.split('.').pop().toUpperCase() }])
+        }
+
+        let msgText = ''
+        if (data.status === 'processing_started') {
+          msgText = `✅ **${data.message}**\n\nThe parsed content will be available for querying shortly.`
+        } else if (data.status === 'already_exists') {
+          msgText = `ℹ️ ${data.message}`
+        } else {
+          msgText = `✅ ${data.message} (${data.chunks} chunks created)`
+        }
+
         setMessages(prev => [...prev, {
           type: 'ai',
-          text: `✅ ${data.message} (${data.chunks} chunks created)`,
+          text: msgText,
           sources: []
         }])
         setUploadingFile(null)
@@ -105,11 +136,38 @@ function App() {
     }
   }
 
+  const handleDeleteSource = async (filename) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${filename}"? This will remove it from the database and the filesystem.`)
+
+    if (!confirmed) return
+
+    try {
+      const response = await fetch(`http://localhost:8000/documents/${encodeURIComponent(filename)}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        setSources(prev => prev.filter(s => s.name !== filename))
+        setMessages(prev => [...prev, {
+          type: 'ai',
+          text: `🗑️ Successfully deleted "${filename}" from the system.`,
+          sources: []
+        }])
+      } else {
+        const data = await response.json()
+        alert(`Failed to delete: ${data.detail || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Error connecting to backend during deletion.')
+    }
+  }
+
   return (
     <div className="app-container">
       <div className="sidebar">
         <button className="audio-guide-btn">
-          ✨ Generate Audio Overview
+          CALDIM
         </button>
 
         <div className="sidebar-title">
@@ -121,7 +179,24 @@ function App() {
           {sources.map((source, i) => (
             <div key={i} className="source-item">
               <div className="source-icon">{source.type}</div>
-              <span className="source-name">{source.name}</span>
+              <span className="source-name" title={source.name}>{source.name}</span>
+              <div className="source-actions">
+                <button
+                  className="delete-source-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteSource(source.name);
+                  }}
+                  title="Delete source"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                </button>
+              </div>
             </div>
           ))}
           {uploadingFile && (
@@ -139,6 +214,7 @@ function App() {
               </div>
             </div>
           )}
+
           {sources.length === 0 && !uploadingFile && <p style={{ color: '#9aa0a6', fontSize: '0.9rem' }}>No sources yet.</p>}
         </div>
 
@@ -160,14 +236,22 @@ function App() {
         <div className="chat-area premium-scroll">
           {messages.map((msg, i) => (
             <div key={i} className={`message ${msg.type === 'user' ? 'user-message' : 'ai-message'}`}>
-              <div className="msg-content">{msg.text}</div>
-              {msg.sources && msg.sources.length > 0 && (
+              <div className="msg-content markdown-body">
+                {msg.type === 'ai' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.text}
+                  </ReactMarkdown>
+                ) : (
+                  msg.text
+                )}
+              </div>
+              {/* {msg.sources && msg.sources.length > 0 && (
                 <div className="sources-container">
                   {msg.sources.map((s, si) => (
                     <span key={si} className="source-badge">{s}</span>
                   ))}
                 </div>
-              )}
+              )} */}
             </div>
           ))}
           {loading && <div className="message ai-message">Thinking...</div>}
