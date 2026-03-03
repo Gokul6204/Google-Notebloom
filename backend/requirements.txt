@@ -17,3 +17,4 @@ langchain-groq
 langchain-postgres
 psycopg[binary]
 sentence-transformers
+PyYAML==6.0.1
